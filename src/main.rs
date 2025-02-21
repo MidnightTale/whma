@@ -17,6 +17,32 @@ fn is_blacklisted(window: HWND, config: &Config) -> bool {
         let mut title_buffer = [0u16; 512];
         let mut class_buffer = [0u16; 512];
         
+        // Check if it's a context menu or popup window
+        let class_len = GetClassNameW(window, &mut class_buffer);
+        if class_len > 0 {
+            let class_str = OsString::from_wide(&class_buffer[..class_len as usize])
+                .to_string_lossy()
+                .to_string();
+            
+            // Exclude common context menu and popup window classes
+            if class_str == "#32768" || // Standard context menu class
+               class_str == "Windows.UI.Core.CoreWindow" || // Modern UI context menus
+               class_str == "Xaml_WindowedPopupClass" || // UWP popup windows
+               class_str.contains("DropDown") || // Various dropdown menus
+               class_str.contains("Popup") || // Generic popup windows
+               class_str.contains("Menu") || // Additional menu-related classes
+               class_str == "CLIPBRDWNDCLASS" || // Clipboard viewer window
+               class_str.contains("ToolTip") { // Tooltip windows
+                return true;
+            }
+            
+            // Check blacklist class names
+            if config.blacklist.iter().any(|entry| !entry.class_name.is_empty() 
+                && class_str == entry.class_name) {
+                return true;
+            }
+        }
+
         // Check window title
         let title_len = GetWindowTextW(window, &mut title_buffer);
         if title_len > 0 {
@@ -26,19 +52,6 @@ fn is_blacklisted(window: HWND, config: &Config) -> bool {
             
             if config.blacklist.iter().any(|entry| !entry.window_title.is_empty() 
                 && window_title.contains(&entry.window_title)) {
-                return true;
-            }
-        }
-
-        // Check class name
-        let class_len = GetClassNameW(window, &mut class_buffer);
-        if class_len > 0 {
-            let class_str = OsString::from_wide(&class_buffer[..class_len as usize])
-                .to_string_lossy()
-                .to_string();
-            
-            if config.blacklist.iter().any(|entry| !entry.class_name.is_empty() 
-                && class_str == entry.class_name) {
                 return true;
             }
         }
